@@ -1,4 +1,8 @@
+import six
+import sys
+sys.modules['sklearn.externals.six'] = six
 import mlrose
+# import mlrose
 import numpy as np
 
 def distance(x_coordinates,y_coordinates,cell1,cell2):

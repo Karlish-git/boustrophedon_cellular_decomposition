@@ -1,18 +1,33 @@
 # Import necessary libraries
 import numpy as np
-import cv2
 from matplotlib import pyplot as plt
 from typing import Tuple, List
+import cv2
 import random
 import itertools
-
 
 Slice = List[Tuple[int, int]]
 
 
+class Cell(object):
+    def __init__(self,
+                 start: int = None,
+                 end: int = None,
+                 boundaries: list = [],
+                 neighbours: list = None,
+                 ):
+        self.start = start
+        self.end = end
+        self.boundaries = boundaries
+        self.neighbours = neighbours
+        self.discovered = False
+        self. cleaned = False
+
+
+
 def calc_connectivity(slice: np.ndarray) -> Tuple[int, Slice]:
     """
-    Calculates the connectivity of a slice and returns the connected area of ​​the slice.
+    Calculates the connectivity of a slice and returns the connected area of the slice.
 
     Args:
         slice: rows. A slice of map.
@@ -65,6 +80,7 @@ def get_adjacency_matrix(parts_left: Slice, parts_right: Slice) -> np.ndarray:
 
     return adjacency_matrix
 
+
 def remove_duplicates(in_list):
     """
         This function removes duplicates in the input list, where
@@ -76,10 +92,27 @@ def remove_duplicates(in_list):
     """
     out_list = []
     in_list.sort()
-    out_list = list(in_list for in_list,_ in itertools.groupby(in_list))
-    #print("input_list: ", in_list)
-    #print("output list: ",out_list)
+    out_list = list(in_list for in_list, _ in itertools.groupby(in_list))
+    # print("input_list: ", in_list)
+    # print("output list: ",out_list)
     return out_list
+
+
+def find_neighbours(cells: List[Cell], robot_width):
+    for i in range(len(cells)-1):  # last one has only neighbours on one side
+        ending = cells[i].end
+    # TODO when to break the j loop?(when there is a geratee thet no more new neigbours can be found)
+        for j in range(1, len(cells)):  # first has no cells on one side
+            if j != i and cells[j].start - 1 == ending:
+                if min(cells[i].boundaries[-1][1], cells[j].boundaries[0][1]) -\
+                        max(cells[i].boundaries[-1][0], cells[j].boundaries[0][0]) >= robot_width:
+                    # get smallest of bottom boundaries and get biggest of upper boundaries check
+                    # if there is enough width for robot to drive,
+                    # if there is thn the cells can be considered neighbours
+                    cells[i].neighbours.append(cells[j])
+                    cells[j].neighbours.append(cells[i])
+
+
 
 def bcd(erode_img: np.ndarray) -> Tuple[np.ndarray, int]:
     """
@@ -97,26 +130,31 @@ def bcd(erode_img: np.ndarray) -> Tuple[np.ndarray, int]:
         non_neighboor_cells --> contains cell index numbers of non_neighboor_cells, i.e.
         cells which are separated by the objects
     """
-    
+
     assert len(erode_img.shape) == 2, 'Map should be single channel.'
     last_connectivity = 0
     last_connectivity_parts = []
-    current_cell = 1
+    current_cell = 1  # offset by 1 because 0 is obstacles
     current_cells = []
     separate_img = np.copy(erode_img)
+    fig, ax = plt.subplots(1, frameon=False)
+    ax.imshow(separate_img, cmap='Greys', interpolation='nearest', alpha=1)
+    plt.show()
     cell_boundaries = {}
     non_neighboor_cells = []
+    cell_start_end = [[0, 0]]
+    # cells = [Cell(0, 0)]
 
     for col in range(erode_img.shape[1]):
         current_slice = erode_img[:, col]
         connectivity, connective_parts = calc_connectivity(current_slice)
-        
+
         if last_connectivity == 0:
             current_cells = []
-            for i in range(connectivity): #slice intersects with the object for the first time
+            for i in range(connectivity):  # slice intersects with the object for the first time
                 current_cells.append(current_cell)
-                current_cell += 1 # we are creating different cells on the same column
-                                  # which are seperated by the objects
+                current_cell += 1  # we are creating different cells on the same column
+                # which are seperated by the objects
         elif connectivity == 0:
             current_cells = []
             continue
@@ -128,46 +166,57 @@ def bcd(erode_img: np.ndarray) -> Tuple[np.ndarray, int]:
                 if np.sum(adj_matrix[i, :]) == 1:
                     new_cells[np.argwhere(adj_matrix[i, :])[0][0]] = current_cells[i]
                 # If a previous part is connected to multiple parts this time, it means that IN has occurred.
-                elif np.sum(adj_matrix[i, :]) > 1: #left slice is connected to more than one part of right slice
+                elif np.sum(adj_matrix[i, :]) > 1:  # left slice is connected to more than one part of right slice
                     for idx in np.argwhere(adj_matrix[i, :]):
                         new_cells[idx[0]] = current_cell
                         current_cell = current_cell + 1
+                        cell_start_end.append([col, col])
+                        # cells.append(Cell(col, col))
 
             for i in range(adj_matrix.shape[1]):
                 # If a part of this time is connected to the last multiple parts, it means that OUT has occurred.
-                if np.sum(adj_matrix[:, i]) > 1: #right slice is connected to more than one part of left slice
+                if np.sum(adj_matrix[:, i]) > 1:  # right slice is connected to more than one part of left slice
                     new_cells[i] = current_cell
                     current_cell = current_cell + 1
+                    cell_start_end.append([col, col])
+                    # cells.append(Cell(col, col))
                 # If this part of the part does not communicate with any part of the last time, it means that it happened in
                 elif np.sum(adj_matrix[:, i]) == 0:
                     new_cells[i] = current_cell
                     current_cell = current_cell + 1
+                    cell_start_end.append([col, col])
+                    # cells.append(Cell(col, col))
             current_cells = new_cells
 
         # Draw the partition information on the map.
         for cell, slice in zip(current_cells, connective_parts):
-            #print("Debug")
-            #print(current_cells, connective_parts)
+            # print("Debug")
+            # print(current_cells, connective_parts)
             separate_img[slice[0]:slice[1], col] = cell
-        
+            # fig, ax = plt.subplots(1, frameon=False)
+            # ax.imshow(separate_img, cmap='Greys', interpolation='nearest', alpha=1)
+            # plt.show()
+
             # print('Slice {}: connectivity from {} to {}'.format(col, last_connectivity, connectivity))
         last_connectivity = connectivity
         last_connectivity_parts = connective_parts
 
-        #print("Debug")
-        #print(current_cells,connective_parts)
-        
-        #print("Current cell: ", current_cell)
-        if len(current_cells) == 1: #no object in this cell
-            cell_index = current_cell -1  # cell index starts from 1
-            cell_boundaries.setdefault(cell_index,[])
-            cell_boundaries[cell_index].append(connective_parts)
-        elif len(current_cells) > 1: #cells separated by the object
-            # cells separated by the objects are not neighbor to each other
-            non_neighboor_cells.append(current_cells)
-            # non_neighboor_cells will contain many duplicate values, but we 
-            # will get rid of duplicates at the end
+        # print("Debug")
+        # print(current_cells,connective_parts)
 
+        # print("Current cell: ", current_cell)
+        # todo put this in for loop next to rest of append cell boundaries
+        if len(current_cells) == 1:  # no object in this cell
+            cell_index = current_cell - 1  # cell index starts from 1, because 0 is obstacles
+            cell_boundaries.setdefault(cell_index, [])
+            cell_boundaries[cell_index].append(connective_parts[0])
+            # cells[cell_index - 1].end = col
+            cell_start_end[cell_index - 1][1] = col  # change cell last colon index
+
+        elif len(current_cells) > 1:  # cells separated by the object
+            # cells separated by the objects are not neighbor to each other
+            if current_cells not in non_neighboor_cells:
+                non_neighboor_cells.append(current_cells)
             # in this logic, all other cells must be neighboor to each other
             # if their cell number are adjacent to each other
             # like cell1 is neighboor to cell2
@@ -179,15 +228,35 @@ def bcd(erode_img: np.ndarray) -> Tuple[np.ndarray, int]:
                 # connective_parts and current_cells contain more than one
                 # cell info which are separated by the object ,so we are iterating
                 # with the for loop to reach all the cells
-                cell_boundaries.setdefault(cell_index,[])
+                # todo Valter, vai te vajag .set default??
+                cell_boundaries.setdefault(cell_index, [])
                 cell_boundaries[cell_index].append(connective_parts[i])
-     
+                # cells[cell_index - 1].boundaries.append(connective_parts[i])
+                # cells[cell_index - 1].end = col
+                cell_start_end[cell_index - 1][1] = col  # change cell last colon index
+
     # Cell 1 is the left most cell and cell n is the right most cell
     # where n is the total cell number
     all_cell_numbers = cell_boundaries.keys()
-    non_neighboor_cells = remove_duplicates(non_neighboor_cells)
-    
-    return separate_img, current_cell, list(all_cell_numbers), cell_boundaries, non_neighboor_cells
+    # non_neighboor_cells = remove_duplicates(non_neighboor_cells)#no need the added if not in non_neighbour does the job
+
+    fig, ax = plt.subplots(1, frameon=False)
+    ax.imshow(separate_img, cmap='Greys', interpolation='none', alpha=1)
+    plt.show()
+
+    cells = []
+    for i in range(len(all_cell_numbers)):
+        cells.append(
+            Cell(start=cell_start_end[i][0],
+                 end=cell_start_end[i][1],
+                 boundaries=cell_boundaries[i + 1],
+                 neighbours=[]
+                 )
+        )
+
+    find_neighbours(cells, 25)
+
+    return separate_img, current_cell, list(all_cell_numbers), cell_boundaries, non_neighboor_cells, cells  # , cell_start_end
 
 
 def display_separate_map(separate_map, cells):
@@ -198,7 +267,8 @@ def display_separate_map(separate_map, cells):
     fig_new = plt.figure()
     plt.imshow(display_img)
 
-def calculate_neighboor_matrix(cells,boundaries,nonneighboor_cells):
+
+def calculate_neighboor_matrix(cells, boundaries, non_neighboor_cells):
     # Doesn't work right now, let's look at later!
     """
         This function creates adjacency matrix for the decomposed cells
@@ -239,9 +309,8 @@ def calculate_neighboor_matrix(cells,boundaries,nonneighboor_cells):
                     adjacency_graph[next_cell] = current_cell #bidirectional way
         #elif (nonneighboor_cells[0][0] == cells[0]):
     """
-            
-    #print("Debug")
-    #print("Total cell number: ", total_cell_number)
-    #print("Boundaries: ", boundaries)
-    #print("Non-neighboor cells: ", nonneighboor_cells)
 
+    # print("Debug")
+    # print("Total cell number: ", total_cell_number)
+    # print("Boundaries: ", boundaries)
+    # print("Non-neighboor cells: ", nonneighboor_cells)
