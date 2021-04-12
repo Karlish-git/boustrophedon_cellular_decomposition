@@ -98,7 +98,7 @@ def remove_duplicates(in_list):
     return out_list
 
 
-def find_neighbours(cells: List[Cell], robot_width):
+def find_neighbours(cells: List[Cell], robot_width: int = 30):
     for i in range(len(cells)-1):  # last one has only neighbours on one side
         ending = cells[i].end
     # TODO when to break the j loop?(when there is a geratee thet no more new neigbours can be found)
@@ -254,7 +254,7 @@ def bcd(erode_img: np.ndarray) -> Tuple[np.ndarray, int]:
                  )
         )
 
-    find_neighbours(cells, 25)
+    find_neighbours(cells)
 
     return separate_img, current_cell, list(all_cell_numbers), cell_boundaries, non_neighboor_cells, cells  # , cell_start_end
 
