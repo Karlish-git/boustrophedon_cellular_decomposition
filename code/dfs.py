@@ -1,3 +1,5 @@
+# not used now
+
 def dfs(cleaned, graph, node):
     if node not in cleaned:
         #print("Path: ", node)

@@ -9,7 +9,8 @@ import itertools
 Slice = List[Tuple[int, int]]
 
 
-class Cell(object):
+class Cell:
+
     def __init__(self,
                  start: int = None,
                  end: int = None,
@@ -61,6 +62,7 @@ def calc_connectivity(slice: np.ndarray) -> Tuple[int, Slice]:
     return connectivity, connective_parts
 
 
+# todo. mby use more than just the previous, so it doesn't create places, where robot can't drive
 def get_adjacency_matrix(parts_left: Slice, parts_right: Slice) -> np.ndarray:
     """
     Get adjacency matrix of 2 neighborhood slices.
@@ -101,7 +103,7 @@ def remove_duplicates(in_list):
 def find_neighbours(cells: List[Cell], robot_width: int = 30):
     for i in range(len(cells)-1):  # last one has only neighbours on one side
         ending = cells[i].end
-    # TODO when to break the j loop?(when there is a geratee thet no more new neigbours can be found)
+    # TODO when to break the j loop?(when there is a guarantee that no more new neighbours can be found)
         for j in range(1, len(cells)):  # first has no cells on one side
             if j != i and cells[j].start - 1 == ending:
                 if min(cells[i].boundaries[-1][1], cells[j].boundaries[0][1]) -\
@@ -111,7 +113,6 @@ def find_neighbours(cells: List[Cell], robot_width: int = 30):
                     # if there is thn the cells can be considered neighbours
                     cells[i].neighbours.append(cells[j])
                     cells[j].neighbours.append(cells[i])
-
 
 
 def bcd(erode_img: np.ndarray) -> Tuple[np.ndarray, int]:
@@ -129,6 +130,7 @@ def bcd(erode_img: np.ndarray) -> Tuple[np.ndarray, int]:
         cell_boundaries --> contains all cell boundary coordinates (only y coordinate)
         non_neighboor_cells --> contains cell index numbers of non_neighboor_cells, i.e.
         cells which are separated by the objects
+        cells --> contins a list of all the
     """
 
     assert len(erode_img.shape) == 2, 'Map should be single channel.'
@@ -258,6 +260,7 @@ def bcd(erode_img: np.ndarray) -> Tuple[np.ndarray, int]:
 
     return separate_img, current_cell, list(all_cell_numbers), cell_boundaries, non_neighboor_cells, cells  # , cell_start_end
 
+# all under this is not needed
 
 def display_separate_map(separate_map, cells):
     display_img = np.empty([*separate_map.shape, 3], dtype=np.uint8)
